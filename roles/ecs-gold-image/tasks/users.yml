@@ -1,0 +1,8 @@
+---
+# Add ec2-user to the docker group DEFAULT: ec2-user adm wheel systemd-journal for AWS
+- user:
+    name: ec2-user
+    shell: /bin/bash
+    groups: ec2-user,adm,wheel,systemd-journal,docker
+    append: yes
+  tags: docker-user

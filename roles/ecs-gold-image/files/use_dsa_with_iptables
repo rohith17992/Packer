@@ -1,0 +1,2 @@
+# This file is here so Trend Micro DSA will not stop IP tables and kill docker!
+# https://success.trendmicro.com/solution/1098791-preventing-deep-security-from-disabling-iptables

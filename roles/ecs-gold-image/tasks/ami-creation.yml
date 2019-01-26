@@ -1,0 +1,44 @@
+---
+# Gather facts about the instance using the tag assigned at creation
+- name: Gather EC2 instance facts
+  ec2_metadata_facts:
+
+# Create the AMI from the fully provisioned instance, maintaining attached volume.
+# wait_timeout set at 25 minutes for the image to finish up
+- ec2_ami:
+    aws_access_key: "{{ s3_read_only_access }}"
+    aws_secret_key: "{{ s3_read_only_secret }}"
+    region: us-east-1
+    instance_id: "{{ ansible_ec2_instance_identity_document_instanceid }}"
+    wait: yes
+    wait_timeout: 1500
+    name: "{{ image_name }}"
+    virtualization_type: hvm
+    device_mapping:
+      - device_name: /dev/sda1
+        delete_on_termination: true 
+        encrypted: true 
+        size: 50
+        volume_type: gp2
+      - device_name: /dev/xvdb
+        delete_on_termination: true 
+        encrypted: true
+        size: 120 
+        volume_type: gp2
+    tags:
+      Name: "{{ image_name }}"
+      image: RHEL-Golden
+  register: image
+
+- debug: var=image
+
+# Cleanup our Instance as it's no longer required
+- name: Terminate instances that were previously launched
+  ec2:
+    state: 'absent'
+    region: us-east-1
+    instance_ids: "{{ ansible_ec2_instance_identity_document_instanceid }}"
+
+- name: Summary
+  debug:
+    msg: The new encrypted AMI is {{ image.image_id }}

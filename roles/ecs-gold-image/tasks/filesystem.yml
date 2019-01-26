@@ -1,0 +1,47 @@
+---
+# get xfsprogs
+- name: install xfsprogs
+  action: yum pkg=xfsprogs state=latest
+
+# Setup Storage for Docker on our Golden Image
+- name: xvdb new partition
+  parted:
+    device: /dev/xvdb
+    number: 1
+    state: present
+  become: yes
+  become_method: sudo
+
+# Create the Filesystem for Docker
+- name: xvdb new filesystem [XFS]
+  filesystem:
+    fstype: xfs
+    dev: /dev/xvdb1
+  become: yes
+  become_method: sudo
+
+# Create the Docker folder
+- name: create docker folder for storage
+  file:
+    path: /dk_data
+    state: directory
+  become: yes
+  become_method: sudo
+
+# Mount our new filesystem
+- name: mount our EBS Volume to dk_data [DOCKER DATA]
+  mount:
+    path: /dk_data
+    src: /dev/xvdb1
+    fstype: xfs
+    state: mounted
+  become: yes
+  become_method: sudo
+
+# Configure ECS Paths
+- name: create folder for ECS Configuration [ecs-init]
+  file:
+    path: /etc/ecs
+    state: directory
+  become: yes
+  become_method: sudo

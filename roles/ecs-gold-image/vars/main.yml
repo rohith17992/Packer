@@ -1,0 +1,10 @@
+---
+# vars file for ecs-gold-image
+image_name: sr-rhel-gold-74
+key_name: susva-dev
+instance_profile_name: HPMS-dev-application
+instance_type: m4.large
+security_group: sg-
+image: ami-3fd00742
+region: us-east-1
+subnet_id: subnet-

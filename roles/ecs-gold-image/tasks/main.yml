@@ -1,0 +1,226 @@
+---
+# tasks file for ecs-gold-image
+
+# Setup and Configure EBS Volume / Docker Data Mount
+- name: Include filesystem mounts
+  import_tasks: filesystem.yml
+  tags: filesystem
+
+#https://success.trendmicro.com/solution/1098791-preventing-deep-security-from-disabling-iptables
+- name: add file so trend does not disable IP tables
+  copy:
+    src: use_dsa_with_iptables
+    dest: /etc/use_dsa_with_iptables
+    owner: root
+    group: root
+    mode: 0755
+  tags: TrendNasty
+  ignore_errors: yes
+
+# Perform system update
+- name: upgrade all packages
+  yum: name=* state=latest
+  tags: RHEL
+  ignore_errors: yes
+
+# Install Common Utilities
+- name: Install Common Utilities
+  yum: name={{ item }} state=installed
+  with_items:
+    - yum-utils
+    - epel-release
+    - python2-pip
+    - device-mapper-persistent-data
+    - lvm2
+    - nano
+  tags: RHEL
+  ignore_errors: yes
+
+- name: stop services we are about to remove
+  service:
+    name: "{{ item }}"
+    state: stopped
+  with_items:
+    - salt-minion
+    - puppet
+    - cloud-init
+  ignore_errors: yes
+
+- name: Remove other other tools
+  yum: name={{ item }} state=absent
+  with_items:
+    - salt
+    - salt-minion
+    - puppet
+    - puppet-agent
+    - nagios
+    - nrpe
+    - net-snmp
+    - samba-client
+  tags: RHEL
+  ignore_errors: yes
+
+- name: copy new cloud-init config file
+  copy:
+    src: cloud.cfg
+    dest: /etc/cloud/cloud.cfg
+    owner: root
+    group: root
+    mode: u=rw,g=r,o=r
+  tags: cloud-init-setup
+  ignore_errors: yes
+
+- name: Enable rhui-REGION-rhel-server-extras repo [enable]
+  ini_file:
+    dest: /etc/yum.repos.d/redhat-rhui.repo
+    section: rhui-REGION-rhel-server-extras
+    option: enabled
+    value: 1
+  tags: repos
+  ignore_errors: yes
+
+# Add the Docker Repository to YUM
+- name: Add docker repo to RHEL
+  yum_repository:
+    name: docker-ce
+    description: Docker YUM repo
+    baseurl: https://download.docker.com/linux/centos/7/$basearch/stable
+    gpgkey: https://download.docker.com/linux/centos/gpg
+    gpgcheck: yes
+  notify: yum-clean-metadata
+  tags: repos
+  ignore_errors: yes
+
+# Install docker
+- name: Install Docker
+  yum: name=docker-ce-17.12.1.ce state=installed
+  tags: docker-setup
+  ignore_errors: yes
+
+# Fix Docker System Startup Path
+- name: Place docker service config file on remote host
+  copy:
+    src: docker.conf
+    dest: /lib/systemd/system/docker.service
+    owner: root
+    group: root
+    mode: u=rw,g=r,o=r
+  tags: docker-setup
+  ignore_errors: yes
+
+# Add ec2-user to the docker group
+- name: Add ec2-user to the docker group
+  import_tasks: users.yml
+  tags: user-setup
+  ignore_errors: yes
+
+# Install docker-py to use containers from Ansible
+#- pip:
+#    name: docker-py
+
+#- pip:
+#    name: boto3
+
+#- pip:
+#    name: boto
+#  ignore_errors: yes  
+
+# Fix ECS Configuration - required for ECS-INIT
+- name: Place ECS Configuration File on remote host
+  copy:
+    src: ecs.config
+    dest: /etc/ecs/ecs.config
+    owner: root
+    group: root
+    mode: u=rw,g=r,o=r
+  tags: ecs-config
+  ignore_errors: yes
+
+# Restart systemctl daemon for docker Configuration
+- name: Refresh docker.service so it is applied
+  systemd:
+    state: restarted
+    daemon_reload: yes
+    name: docker
+    enabled: yes
+  tags: docker-setup
+  ignore_errors: yes
+
+# Add GDIT-provided key for Nessus authentication
+- name: Add GDIT-Nessus key
+  authorized_key:
+    user: nessus_service
+    state: present
+    key: "{{ lookup('file', './files/HPMS_GDIT_Nessus.pub') }}"
+  ignore_errors: yes
+  become: yes
+  become_method: sudo
+  ignore_errors: yes
+
+# Correct sysctl.d in order to allow ipv4 to route locally
+- name: set net.ipv4.conf.all.route_localnet
+  sysctl:
+    name: net.ipv4.conf.all.route_localnet
+    value: 1
+    sysctl_set: yes
+    state: present
+    reload: yes
+  tags: network
+  ignore_errors: yes
+
+- name: set net.ipv4.ip_forward
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: 1
+    sysctl_set: yes
+    state: present
+    reload: yes
+  tags: network
+  ignore_errors: yes
+
+# NAT IN - DNAT for port 80 to 51679 for ECS to use IAM Roles
+- iptables:
+    table: nat
+    chain: PREROUTING
+    in_interface: eth0
+    protocol: tcp
+    match: tcp
+    source: 169.254.170.2
+    source_port: 80
+    destination: 127.0.0.1
+    destination_port: 51679
+    comment: DNAT for ECS IAM Roles
+  become: yes
+  tags: network
+  ignore_errors: yes
+
+# NAT OUT - Redirect port 80 to 51679 for ECS IAM Roles
+- iptables:
+    table: nat
+    chain: OUTPUT
+    protocol: tcp
+    match: tcp
+    source: 169.254.170.2
+    destination_port: 80
+    jump: REDIRECT
+    to_ports: 51679
+    comment: Redirect for ECS IAM Roles
+  become: yes
+  tags: network
+  ignore_errors: yes
+
+# Variable setup.
+- name: Include Top Secret Varables
+  include_vars: vars/hpms-image.yml
+  ignore_errors: yes
+
+
+- name: Run any outstanding handlers
+  meta: flush_handlers
+  ignore_errors: yes
+
+# Launch Image Creation
+#- name: Create the Golden AMI for Softrams
+#  import_tasks: ami-creation.yml
+#  tags: ami-creation
+  
