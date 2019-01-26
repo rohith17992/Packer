@@ -150,7 +150,7 @@
   authorized_key:
     user: nessus_service
     state: present
-    key: "{{ lookup('file', './files/HPMS_GDIT_Nessus.pub') }}"
+    key: "{{ lookup('file', './files/ACOMS_GDIT_Nessus.pub') }}"
   ignore_errors: yes
   become: yes
   become_method: sudo
