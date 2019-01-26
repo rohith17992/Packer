@@ -95,7 +95,6 @@
 - name: Install Docker
   yum: name=docker-ce-17.12.1.ce state=installed
   tags: docker-setup
-  ignore_errors: yes
 
 # Fix Docker System Startup Path
 - name: Place docker service config file on remote host
@@ -106,23 +105,23 @@
     group: root
     mode: u=rw,g=r,o=r
   tags: docker-setup
-  ignore_errors: yes
+  
 
 # Add ec2-user to the docker group
 - name: Add ec2-user to the docker group
   import_tasks: users.yml
   tags: user-setup
-  ignore_errors: yes
+  
 
 # Install docker-py to use containers from Ansible
-#- pip:
-#    name: docker-py
+- pip:
+    name: docker-py
 
-#- pip:
-#    name: boto3
+- pip:
+    name: boto3
 
-#- pip:
-#    name: boto
+- pip:
+    name: boto
 #  ignore_errors: yes  
 
 # Fix ECS Configuration - required for ECS-INIT
@@ -134,7 +133,7 @@
     group: root
     mode: u=rw,g=r,o=r
   tags: ecs-config
-  ignore_errors: yes
+  
 
 # Restart systemctl daemon for docker Configuration
 - name: Refresh docker.service so it is applied
@@ -144,14 +143,14 @@
     name: docker
     enabled: yes
   tags: docker-setup
-  ignore_errors: yes
+  
 
 # Add GDIT-provided key for Nessus authentication
 - name: Add GDIT-Nessus key
   authorized_key:
     user: nessus_service
     state: present
-    key: "{{ lookup('file', './files/HPMS_GDIT_Nessus.pub') }}"
+    key: "{{ lookup('file', './files/ACOMS_GDIT_Nessus.pub') }}"
   ignore_errors: yes
   become: yes
   become_method: sudo
@@ -166,7 +165,7 @@
     state: present
     reload: yes
   tags: network
-  ignore_errors: yes
+  
 
 - name: set net.ipv4.ip_forward
   sysctl:
@@ -176,7 +175,7 @@
     state: present
     reload: yes
   tags: network
-  ignore_errors: yes
+  
 
 # NAT IN - DNAT for port 80 to 51679 for ECS to use IAM Roles
 - iptables:
@@ -192,7 +191,7 @@
     comment: DNAT for ECS IAM Roles
   become: yes
   tags: network
-  ignore_errors: yes
+  
 
 # NAT OUT - Redirect port 80 to 51679 for ECS IAM Roles
 - iptables:
@@ -207,7 +206,7 @@
     comment: Redirect for ECS IAM Roles
   become: yes
   tags: network
-  ignore_errors: yes
+  
 
 # Variable setup.
 - name: Include Top Secret Varables
